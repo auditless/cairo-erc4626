@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "cairo-erc4626"
+version = "0.1.0"
+description = ""
+authors = ["Peteris Erins <peteris@auditless.com>"]
+
+[tool.poetry.dependencies]
+python = "3.9.10"
+attrs = "^21.4.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2.5"
+cairo-nile = "^0.3.0"
+hypothesis = "^6.35.0"
+mypy = "^0.931"
+black = "^21.12b0"
+cairo-lang = "^0.7.0"
+dill = "^0.3.4"
+pytest-xdist = "^2.5.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

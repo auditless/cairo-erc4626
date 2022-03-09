@@ -1,0 +1,52 @@
+name: Unit tests
+
+on:
+  push:
+    branches:
+      - "**"
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Cache pip
+        id: cached-pip
+        uses: actions/cache@v2
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements_dev.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+            ${{ runner.os }}-
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.9"
+
+      - name: Install poetry
+        run: pip3 install poetry
+
+      - name: Configure poetry for caching
+        run: poetry config virtualenvs.in-project true
+
+      - name: Cache poetry dependencies
+        id: cached-poetry-dependencies
+        uses: actions/cache@v2
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ hashFiles('pyproject.toml') }}-v2
+          restore-keys: |
+            ${{ runner.os }}-poetry-v2
+            ${{ runner.os }}-v2
+
+      - name: Downgrade setuptools in poetry
+        run: poetry run pip install setuptools==57
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Run the tests
+        run: make test
