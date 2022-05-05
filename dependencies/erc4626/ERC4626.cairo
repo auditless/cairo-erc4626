@@ -49,7 +49,7 @@ from dependencies.erc4626.utils.fixedpointmathlib import (
 ## @dev When extending this contract, don't forget to incorporate the ERC20 implementation.
 ## @author Peteris <github.com/Pet3ris>
 
-# TODO: Apply uint256 checks for validity (uint256_check)
+# TODO: Safemath
 
 #############################################
 ##               CONSTRUCTOR               ##
@@ -76,20 +76,6 @@ end
 @view
 func asset{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> (asset: felt):
     return ERC4626_asset_.read()
-end
-
-#############################################
-##               INTERNAL                  ##
-#############################################
-
-func ERC4626_assetsOf{
-        syscall_ptr: felt*,
-        pedersen_ptr: HashBuiltin*,
-        range_check_ptr
-    }(user: felt) -> (assets: Uint256):
-    alloc_locals
-    let (local balance) = ERC20_balanceOf(user)
-    return ERC4626_previewRedeem(balance)
 end
 
 #############################################
@@ -233,7 +219,8 @@ func ERC4626_maxWithdraw{
         pedersen_ptr: HashBuiltin*,
         range_check_ptr
     }(from_: felt) -> (maxAssets: Uint256):
-    return ERC4626_assetsOf(from_)
+    let (balance) = ERC20_balanceOf(from_)
+    return convertToAssets(balance)
 end
 
 @view
@@ -265,17 +252,7 @@ func ERC4626_previewDeposit{
         pedersen_ptr: HashBuiltin*,
         range_check_ptr
     }(assets: Uint256) -> (shares: Uint256):
-    alloc_locals
-
-    let (local supply) = ERC20_totalSupply()
-    let (local allAssets) = totalAssets()
-    let ZERO = Uint256(0, 0)
-    let (supply_is_zero) = uint256_eq(supply, ZERO)
-    if supply_is_zero == 1:
-        return (assets)
-    end
-    let (local z) = mulDivDown(assets, supply, allAssets)
-    return (z)
+    return ERC4626_convertToShares(assets)
 end
 
 func ERC4626_previewMint{
@@ -319,19 +296,8 @@ func ERC4626_previewRedeem{
         pedersen_ptr: HashBuiltin*,
         range_check_ptr
         }(shares: Uint256) -> (assets: Uint256):
-    alloc_locals
-
-    let (local supply) = ERC20_totalSupply()
-    let (local allAssets) = totalAssets()
-    let ZERO = Uint256(0, 0)
-    let (supply_is_zero) = uint256_eq(supply, ZERO)
-    if supply_is_zero == 1:
-        return (shares)
-    end
-    let (local z) = mulDivDown(shares, allAssets, supply)
-    return (z)
+    return ERC4626_convertToAssets(shares)
 end
-
 
 @view
 func previewDeposit{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(assets: Uint256) -> (shares: Uint256):
@@ -351,6 +317,56 @@ end
 @view
 func previewRedeem{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(shares: Uint256) -> (assets: Uint256):
     return ERC4626_previewRedeem(shares)
+end
+
+#############################################
+##            CONVERT ACTIONS              ##
+#############################################
+
+func ERC4626_convertToShares{
+        syscall_ptr: felt*,
+        pedersen_ptr: HashBuiltin*,
+        range_check_ptr
+    }(assets: Uint256) -> (shares: Uint256):
+    alloc_locals
+
+    let (local supply) = ERC20_totalSupply()
+    let (local allAssets) = totalAssets()
+    let ZERO = Uint256(0, 0)
+    let (supply_is_zero) = uint256_eq(supply, ZERO)
+    if supply_is_zero == 1:
+        return (assets)
+    end
+    let (local z) = mulDivDown(assets, supply, allAssets)
+    return (z)
+end
+
+func ERC4626_convertToAssets{
+        syscall_ptr: felt*,
+        pedersen_ptr: HashBuiltin*,
+        range_check_ptr
+        }(shares: Uint256) -> (assets: Uint256):
+    alloc_locals
+
+    let (local supply) = ERC20_totalSupply()
+    let (local allAssets) = totalAssets()
+    let ZERO = Uint256(0, 0)
+    let (supply_is_zero) = uint256_eq(supply, ZERO)
+    if supply_is_zero == 1:
+        return (shares)
+    end
+    let (local z) = mulDivDown(shares, allAssets, supply)
+    return (z)
+end
+
+@view
+func convertToShares{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(assets: Uint256) -> (shares: Uint256):
+    return ERC4626_convertToShares(assets)
+end
+
+@view
+func convertToAssets{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(shares: Uint256) -> (assets: Uint256):
+    return ERC4626_convertToAssets(shares)
 end
 
 #############################################
