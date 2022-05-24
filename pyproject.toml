@@ -7,16 +7,18 @@ authors = ["Peteris Erins <peteris@auditless.com>"]
 [tool.poetry.dependencies]
 python = "3.9.12"
 attrs = "^21.4.0"
+marshmallow-dataclass = "8.5.3"
+importlib-resources = "5.7.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
-cairo-nile = "^0.3.0"
 hypothesis = "^6.35.0"
 mypy = "^0.931"
 black = "^21.12b0"
-cairo-lang = "^0.7.0"
 dill = "^0.3.4"
 pytest-xdist = "^2.5.0"
+cairo-lang = "^0.8.2"
+cairo-nile = "^0.6.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

@@ -2,12 +2,21 @@
 
 from typing import Tuple
 
-from starkware.cairo.common.hash_state import compute_hash_on_elements
-from starkware.crypto.signature.signature import private_to_stark_key, sign
 from starkware.starknet.public.abi import get_selector_from_name
+from starkware.starknet.business_logic.execution.objects import Event
+
+from nile.signer import Signer
 
 
 TRANSACTION_VERSION = 0
+
+
+def assert_event_emitted(tx_exec_info, from_address, name, data):
+    assert Event(
+        from_address=from_address,
+        keys=[get_selector_from_name(name)],
+        data=data,
+    ) in tx_exec_info.raw_events
 
 
 def str_to_felt(text: str) -> int:
@@ -21,7 +30,7 @@ def uint(a: int) -> Tuple[int, int]:
     return (a, 0)
 
 
-class Signer:
+class TestSigner():
     """
     Utility for sending signed transactions to an Account on Starknet.
     Parameters
@@ -29,67 +38,38 @@ class Signer:
     private_key : int
     Examples
     ---------
-    Constructing a Singer object
-    >>> signer = Signer(1234)
+    Constructing a TestSigner object
+    >>> signer = TestSigner(1234)
     Sending a transaction
-    >>> await signer.send_transaction(account,
-                                      account.contract_address,
-                                      'set_public_key',
-                                      [other.public_key]
-                                     )
+    >>> await signer.send_transaction(
+            account, contract_address, 'contract_method', [arg_1]
+        )
+    Sending multiple transactions
+    >>> await signer.send_transaction(
+            account, [
+                (contract_address, 'contract_method', [arg_1]),
+                (contract_address, 'another_method', [arg_1, arg_2])
+            ]
+        )
+                           
     """
-
     def __init__(self, private_key):
-        self.private_key = private_key
-        self.public_key = private_to_stark_key(private_key)
+        self.signer = Signer(private_key)
+        self.public_key = self.signer.public_key
+        
+    async def send_transaction(self, account, to, selector_name, calldata, nonce=None, max_fee=0):
+        return await self.send_transactions(account, [(to, selector_name, calldata)], nonce, max_fee)
 
-    def sign(self, message_hash):
-        return sign(msg_hash=message_hash, priv_key=self.private_key)
-
-    async def send_transaction(
-        self, account, to, selector_name, calldata, nonce=None, max_fee=0
-    ):
+    async def send_transactions(self, account, calls, nonce=None, max_fee=0):
         if nonce is None:
             execution_info = await account.get_nonce().call()
-            (nonce,) = execution_info.result
+            nonce, = execution_info.result
 
-        calls = [(to, selector_name, calldata)]
-        calls_with_selector = [(to, get_selector_from_name(selector_name), calldata)]
-        (call_array, calldata) = from_call_to_call_array(calls)
+        build_calls = []
+        for call in calls:
+            build_call = list(call)
+            build_call[0] = hex(build_call[0])
+            build_calls.append(build_call)
 
-        message_hash = hash_multicall(
-            account.contract_address, calls_with_selector, nonce, max_fee
-        )
-        sig_r, sig_s = self.sign(message_hash)
-
-        return await account.__execute__(call_array, calldata, nonce).invoke(
-            signature=[sig_r, sig_s]
-        )
-
-
-def from_call_to_call_array(calls):
-    call_array = []
-    calldata = []
-    for i, call in enumerate(calls):
-        assert len(call) == 3, "Invalid call parameters"
-        entry = (call[0], get_selector_from_name(call[1]), len(calldata), len(call[2]))
-        call_array.append(entry)
-        calldata.extend(call[2])
-    return (call_array, calldata)
-
-
-def hash_multicall(sender, calls, nonce, max_fee):
-    hash_array = []
-    for call in calls:
-        call_elements = [call[0], call[1], compute_hash_on_elements(call[2])]
-        hash_array.append(compute_hash_on_elements(call_elements))
-
-    message = [
-        str_to_felt("StarkNet Transaction"),
-        sender,
-        compute_hash_on_elements(hash_array),
-        nonce,
-        max_fee,
-        TRANSACTION_VERSION,
-    ]
-    return compute_hash_on_elements(message)
+        (call_array, calldata, sig_r, sig_s) = self.signer.sign_transaction(hex(account.contract_address), build_calls, nonce, max_fee)
+        return await account.__execute__(call_array, calldata, nonce).invoke(signature=[sig_r, sig_s])

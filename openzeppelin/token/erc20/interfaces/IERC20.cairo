@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# OpenZeppelin Cairo Contracts v0.1.0 (token/erc20/interfaces/IERC20.cairo)
+# OpenZeppelin Contracts for Cairo v0.1.0 (token/erc20/interfaces/IERC20.cairo)
 
 %lang starknet
 
@@ -38,4 +38,3 @@ namespace IERC20:
     func approve(spender: felt, amount: Uint256) -> (success: felt):
     end
 end
-
