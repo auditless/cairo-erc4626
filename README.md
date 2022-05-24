@@ -1,6 +1,6 @@
 # ERC4622 Vault Implementation
 
-- `erc4626`: contracts
+- `dependencies.erc4626`: contracts
 - `openzeppelin`: OpenZeppelin `cairo-contracts` dependencies
 - `tests`: pytest tests folder
 
@@ -16,11 +16,13 @@ This code is entirely experimental, changing frequently and un-audited. Please d
 ## Reusability
 
 How to reuse this code:
-- Copy the `erc4626/dependencies` folder to your repository
+- Copy the `dependencies/erc4626` folder to your repository
 - Copy the `openzeppelin` folder from the latest openzeppelin `cairo-contracts` implementation
 - Copy the `ERC4626.cairo` contract into your own implementation
 - Use your favorite ERC20 implementation with the contract
 - Fill in the hook functions
+
+Or feel free to get in touch with us on [Twitter](http://www.twitter.com/yagi_fi).
 
 ## How to contribute
 

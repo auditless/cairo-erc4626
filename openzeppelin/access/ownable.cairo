@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# OpenZeppelin Cairo Contracts v0.1.0 (access/ownable.cairo)
+# OpenZeppelin Contracts for Cairo v0.1.0 (access/ownable.cairo)
 
 %lang starknet
 
@@ -26,7 +26,9 @@ func Ownable_only_owner{
     }():
     let (owner) = Ownable_owner.read()
     let (caller) = get_caller_address()
-    assert owner = caller
+    with_attr error_message("Ownable: caller is not the owner"):
+        assert owner = caller
+    end
     return ()
 end
 

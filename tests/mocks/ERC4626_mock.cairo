@@ -1,430 +1,329 @@
-## SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 
 %lang starknet
 
+from starkware.cairo.common.bool import TRUE, FALSE
 from starkware.cairo.common.cairo_builtins import HashBuiltin
-from starkware.starknet.common.syscalls import (
-    get_caller_address,
-    get_contract_address
-)
-from starkware.cairo.common.uint256 import (
-    ALL_ONES,
-    Uint256,
-    uint256_check,
-    uint256_eq,
-    uint256_lt,
-    uint256_sub
-)
+from starkware.starknet.common.syscalls import get_caller_address, get_contract_address
+from starkware.cairo.common.uint256 import ALL_ONES, Uint256, uint256_check, uint256_eq
 
 from openzeppelin.token.erc20.interfaces.IERC20 import IERC20
-from openzeppelin.token.erc20.library import (
-    ERC20_name,
-    ERC20_symbol,
-    ERC20_totalSupply,
-    ERC20_decimals,
-    ERC20_balanceOf,
-    ERC20_allowance,
+from openzeppelin.token.erc20.library import ERC20
 
-    ERC20_initializer,
-    ERC20_approve,
-    ERC20_increaseAllowance,
-    ERC20_decreaseAllowance,
-    ERC20_transfer,
-    ERC20_transferFrom,
+from dependencies.erc4626.library import ERC4626, ERC4626_asset, Deposit, Withdraw
+from dependencies.erc4626.utils.fixedpointmathlib import mul_div_down, mul_div_up
 
-    ERC20_mint,
-    ERC20_burn
-)
-from openzeppelin.utils.constants import TRUE
-
-from dependencies.erc4626.library import (
-    ERC4626_initializer,
-    ERC4626_asset_,
-
-    ERC4626_maxDeposit,
-    ERC4626_maxMint,
-    ERC4626_maxRedeem,
-
-    ERC4626_deposit_event,
-    ERC4626_withdraw_event,
-    
-    ERC20_decreaseAllowance_manual
-)
-from dependencies.erc4626.utils.fixedpointmathlib import (
-    mulDivDown,
-    mulDivUp,
-)
+# @title Generic ERC4626 vault (copy this to build your own).
+# @description An ERC4626-style vault implementation.
+#              Adapted from the solmate implementation: https://github.com/Rari-Capital/solmate/blob/main/src/mixins/ERC4626.sol
+# @dev When extending this contract, don't forget to incorporate the ERC20 implementation.
+# @author Peteris <github.com/Pet3ris>
 
 #############################################
-##               CONSTRUCTOR               ##
+#                CONSTRUCTOR                #
 #############################################
 
 @constructor
-func constructor{
-        syscall_ptr: felt*, 
-        pedersen_ptr: HashBuiltin*,
-        range_check_ptr
-    }(
-        asset: felt,
-        name: felt,
-        symbol: felt
-    ):
-    ERC4626_initializer(asset, name, symbol)
+func constructor{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        asset : felt, name : felt, symbol : felt):
+    ERC4626.initializer(asset, name, symbol)
     return ()
 end
 
 #############################################
-##                GETTERS                  ##
+#                 GETTERS                   #
 #############################################
 
 @view
-func asset{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> (asset: felt):
-    return ERC4626_asset_.read()
+func asset{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}() -> (asset : felt):
+    return ERC4626_asset.read()
 end
 
 #############################################
-##                 ACTIONS                 ##
+#                 STORAGE                   #
 #############################################
 
-func ERC4626_deposit{
-        syscall_ptr: felt*,
-        pedersen_ptr: HashBuiltin*,
-        range_check_ptr
-    }(assets: Uint256, receiver: felt) -> (shares: Uint256):
-    alloc_locals
+@storage_var
+func beforeWithdrawHookCalledCounter_() -> (count : felt):
+end
 
+@storage_var
+func afterDepositHookCalledCounter_() -> (count : felt):
+end
+
+#############################################
+#                  ACTIONS                  #
+#############################################
+
+@external
+func deposit{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        assets : Uint256, receiver : felt) -> (shares : Uint256):
+    alloc_locals
     # Check for rounding error since we round down in previewDeposit.
-    let (local shares) = ERC4626_previewDeposit(assets)
-    with_attr error_message("ZERO SHARES"):
+    let (local shares) = previewDeposit(assets)
+    with_attr error_message("ERC4626: cannot deposit 0 shares"):
         let ZERO = Uint256(0, 0)
         let (shares_is_zero) = uint256_eq(shares, ZERO)
-        assert shares_is_zero = 0
+        assert shares_is_zero = FALSE
     end
 
     # Need to transfer before minting or ERC777s could reenter.
-    let (asset) = ERC4626_asset_.read()
+    let (asset) = ERC4626_asset.read()
     let (local msg_sender) = get_caller_address()
     let (local this) = get_contract_address()
     IERC20.transferFrom(contract_address=asset, sender=msg_sender, recipient=this, amount=assets)
 
-    ERC20_mint(receiver, shares)
+    ERC20._mint(receiver, shares)
 
-    ERC4626_deposit_event.emit(msg_sender, receiver, assets, shares)
+    Deposit.emit(msg_sender, receiver, assets, shares)
 
-    afterDeposit(assets, shares)
+    _after_deposit(assets, shares)
 
     return (shares)
 end
 
-func ERC4626_mint{
-        syscall_ptr: felt*,
-        pedersen_ptr: HashBuiltin*,
-        range_check_ptr
-    }(shares: Uint256, receiver: felt) -> (assets: Uint256):
+@external
+func mint{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        shares : Uint256, receiver : felt) -> (assets : Uint256):
     alloc_locals
-
     # No need to check for rounding error, previewMint rounds up.
-    let (local assets) = ERC4626_previewMint(shares)
+    let (local assets) = previewMint(shares)
 
     # Need to transfer before minting or ERC777s could reenter.
-    let (asset) = ERC4626_asset_.read()
+    let (asset) = ERC4626_asset.read()
     let (local msg_sender) = get_caller_address()
     let (local this) = get_contract_address()
     IERC20.transferFrom(contract_address=asset, sender=msg_sender, recipient=this, amount=assets)
 
-    ERC20_mint(receiver, shares)
+    ERC20._mint(receiver, shares)
 
-    ERC4626_deposit_event.emit(msg_sender, receiver, assets, shares)
+    Deposit.emit(msg_sender, receiver, assets, shares)
 
-    afterDeposit(assets, shares)
+    _after_deposit(assets, shares)
 
     return (assets)
 end
 
-func ERC4626_withdraw{
-        syscall_ptr: felt*,
-        pedersen_ptr: HashBuiltin*,
-        range_check_ptr
-    }(assets: Uint256, receiver: felt, owner: felt) -> (shares: Uint256):
+@external
+func withdraw{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        assets : Uint256, receiver : felt, owner : felt) -> (shares : Uint256):
     alloc_locals
     # No need to check for rounding error, previewWithdraw rounds up.
-    let (local shares) = ERC4626_previewWithdraw(assets)
+    let (local shares) = previewWithdraw(assets)
 
     let (local msg_sender) = get_caller_address()
-    ERC20_decreaseAllowance_manual(owner, msg_sender, shares)
+    ERC4626.ERC20_decrease_allowance_manual(owner, msg_sender, shares)
 
-    beforeWithdraw(assets, shares)
+    _before_withdraw(assets, shares)
 
-    ERC20_burn(owner, shares)
+    ERC20._burn(owner, shares)
 
-    ERC4626_withdraw_event.emit(owner, receiver, assets, shares)
+    Withdraw.emit(owner, receiver, assets, shares)
 
-    let (asset) = ERC4626_asset_.read()
+    let (asset) = ERC4626_asset.read()
     IERC20.transfer(contract_address=asset, recipient=receiver, amount=assets)
 
     return (shares)
 end
 
-func ERC4626_redeem{
-        syscall_ptr: felt*,
-        pedersen_ptr: HashBuiltin*,
-        range_check_ptr
-    }(shares: Uint256, receiver: felt, owner: felt) -> (assets: Uint256):
+@external
+func redeem{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        shares : Uint256, receiver : felt, owner : felt) -> (assets : Uint256):
     alloc_locals
     let (local msg_sender) = get_caller_address()
-    ERC20_decreaseAllowance_manual(owner, msg_sender, shares)
+    ERC4626.ERC20_decrease_allowance_manual(owner, msg_sender, shares)
 
-    # Check for rounding error since we round down in previewRedeem.    
-    let (local assets) = ERC4626_previewRedeem(shares)
+    # Check for rounding error since we round down in previewRedeem.
+    let (local assets) = previewRedeem(shares)
     let ZERO = Uint256(0, 0)
     let (assets_is_zero) = uint256_eq(assets, ZERO)
-    with_attr error_message("ZERO ASSETS"):
-        assert assets_is_zero = 0
+    with_attr error_message("ERC4626: cannot redeem 0 assets"):
+        assert assets_is_zero = FALSE
     end
 
-    beforeWithdraw(assets, shares)
+    _before_withdraw(assets, shares)
 
-    ERC20_burn(owner, shares) 
+    ERC20._burn(owner, shares)
 
-    ERC4626_withdraw_event.emit(owner, receiver, assets, shares)
+    Withdraw.emit(owner, receiver, assets, shares)
 
-    let (asset) = ERC4626_asset_.read()
+    let (asset) = ERC4626_asset.read()
     IERC20.transfer(contract_address=asset, recipient=receiver, amount=assets)
 
     return (assets)
 end
 
-@external
-func deposit{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(assets: Uint256, receiver: felt) -> (shares: Uint256):
-    return ERC4626_deposit(assets, receiver)
-end
-
-@external
-func mint{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(shares: Uint256, receiver: felt) -> (assets: Uint256):
-    return ERC4626_mint(shares, receiver)
-end
-
-@external
-func withdraw{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(assets: Uint256, receiver: felt, owner: felt) -> (shares: Uint256):
-    return ERC4626_withdraw(assets, receiver, owner)
-end
-
-@external
-func redeem{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(shares: Uint256, receiver: felt, owner: felt) -> (assets: Uint256):
-    return ERC4626_redeem(shares, receiver, owner)
-end
-
 #############################################
-##              MAX ACTIONS                ##
+#               MAX ACTIONS                 #
 #############################################
 
-func ERC4626_maxWithdraw{
-        syscall_ptr: felt*,
-        pedersen_ptr: HashBuiltin*,
-        range_check_ptr
-    }(from_: felt) -> (maxAssets: Uint256):
-    let (balance) = ERC20_balanceOf(from_)
+@view
+func maxDeposit(to : felt) -> (maxAssets : Uint256):
+    return ERC4626.max_deposit(to)
+end
+
+@view
+func maxMint(to : felt) -> (maxShares : Uint256):
+    return ERC4626.max_mint(to)
+end
+
+@view
+func maxWithdraw{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        from_ : felt) -> (maxAssets : Uint256):
+    let (balance) = ERC20.balance_of(from_)
     return convertToAssets(balance)
 end
 
 @view
-func maxDeposit(to: felt) -> (maxAssets: Uint256):
-    return ERC4626_maxDeposit(to)
-end
-
-@view
-func maxMint(to: felt) -> (maxShares: Uint256):
-    return ERC4626_maxMint(to)
-end
-
-@view
-func maxWithdraw{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(from_: felt) -> (maxAssets: Uint256):
-    return ERC4626_maxWithdraw(from_)
-end
-
-@view
-func maxRedeem{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(caller: felt) -> (maxShares: Uint256):
-    return ERC4626_maxRedeem(caller)
+func maxRedeem{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        caller : felt) -> (maxShares : Uint256):
+    return ERC4626.max_redeem(caller)
 end
 
 #############################################
-##            PREVIEW ACTIONS              ##
+#             PREVIEW ACTIONS               #
 #############################################
 
-func ERC4626_previewDeposit{
-        syscall_ptr: felt*,
-        pedersen_ptr: HashBuiltin*,
-        range_check_ptr
-    }(assets: Uint256) -> (shares: Uint256):
-    return ERC4626_convertToShares(assets)
+@view
+func previewDeposit{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        assets : Uint256) -> (shares : Uint256):
+    return convertToShares(assets)
 end
 
-func ERC4626_previewMint{
-        syscall_ptr: felt*,
-        pedersen_ptr: HashBuiltin*,
-        range_check_ptr
-    }(shares: Uint256) -> (assets: Uint256):
+@view
+func previewMint{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        shares : Uint256) -> (assets : Uint256):
     alloc_locals
+    # Probably not needed
+    with_attr error_message("ERC4626: shares is not a valid Uint256"):
+        uint256_check(shares)
+    end
 
-    let (local supply) = ERC20_totalSupply()
-    let (local allAssets) = totalAssets()
+    let (local supply) = ERC20.total_supply()
+    let (local all_assets) = totalAssets()
     let ZERO = Uint256(0, 0)
     let (supply_is_zero) = uint256_eq(supply, ZERO)
-    if supply_is_zero == 1:
+    if supply_is_zero == TRUE:
         return (shares)
     end
-    let (local z) = mulDivUp(shares, allAssets, supply)
+    let (local z) = mul_div_up(shares, all_assets, supply)
     return (z)
 end
 
-func ERC4626_previewWithdraw{
-        syscall_ptr: felt*,
-        pedersen_ptr: HashBuiltin*,
-        range_check_ptr
-    }(assets: Uint256) -> (shares: Uint256):
+@view
+func previewWithdraw{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        assets : Uint256) -> (shares : Uint256):
     alloc_locals
+    # Probably not needed
+    with_attr error_message("ERC4626: assets is not a valid Uint256"):
+        uint256_check(assets)
+    end
 
-    let (local supply) = ERC20_totalSupply()
-    let (local allAssets) = totalAssets()
+    let (local supply) = ERC20.total_supply()
+    let (local all_assets) = totalAssets()
     let ZERO = Uint256(0, 0)
     let (supply_is_zero) = uint256_eq(supply, ZERO)
-    if supply_is_zero == 1:
+    if supply_is_zero == TRUE:
         return (assets)
     end
-    let (local z) = mulDivUp(assets, supply, allAssets)
+    let (local z) = mul_div_up(assets, supply, all_assets)
     return (z)
 end
 
-func ERC4626_previewRedeem{
-        syscall_ptr: felt*,
-        pedersen_ptr: HashBuiltin*,
-        range_check_ptr
-        }(shares: Uint256) -> (assets: Uint256):
-    return ERC4626_convertToAssets(shares)
-end
-
 @view
-func previewDeposit{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(assets: Uint256) -> (shares: Uint256):
-    return ERC4626_previewDeposit(assets)
-end
-
-@view
-func previewMint{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(shares: Uint256) -> (assets: Uint256):
-    return ERC4626_previewMint(shares)
-end
-
-@view
-func previewWithdraw{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(assets: Uint256) -> (shares: Uint256):
-    return ERC4626_previewWithdraw(assets)
-end
-
-@view
-func previewRedeem{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(shares: Uint256) -> (assets: Uint256):
-    return ERC4626_previewRedeem(shares)
+func previewRedeem{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        shares : Uint256) -> (assets : Uint256):
+    return convertToAssets(shares)
 end
 
 #############################################
-##            CONVERT ACTIONS              ##
+#             CONVERT ACTIONS               #
 #############################################
 
-func ERC4626_convertToShares{
-        syscall_ptr: felt*,
-        pedersen_ptr: HashBuiltin*,
-        range_check_ptr
-    }(assets: Uint256) -> (shares: Uint256):
+@view
+func convertToShares{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        assets : Uint256) -> (shares : Uint256):
     alloc_locals
+    with_attr error_message("ERC4626: assets is not a valid Uint256"):
+        uint256_check(assets)
+    end
 
-    let (local supply) = ERC20_totalSupply()
+    let (local supply) = ERC20.total_supply()
     let (local allAssets) = totalAssets()
     let ZERO = Uint256(0, 0)
     let (supply_is_zero) = uint256_eq(supply, ZERO)
-    if supply_is_zero == 1:
+    if supply_is_zero == TRUE:
         return (assets)
     end
-    let (local z) = mulDivDown(assets, supply, allAssets)
+    let (local z) = mul_div_down(assets, supply, allAssets)
     return (z)
 end
 
-func ERC4626_convertToAssets{
-        syscall_ptr: felt*,
-        pedersen_ptr: HashBuiltin*,
-        range_check_ptr
-        }(shares: Uint256) -> (assets: Uint256):
+@view
+func convertToAssets{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        shares : Uint256) -> (assets : Uint256):
     alloc_locals
+    with_attr error_message("ERC4626: shares is not a valid Uint256"):
+        uint256_check(shares)
+    end
 
-    let (local supply) = ERC20_totalSupply()
+    let (local supply) = ERC20.total_supply()
     let (local allAssets) = totalAssets()
     let ZERO = Uint256(0, 0)
     let (supply_is_zero) = uint256_eq(supply, ZERO)
-    if supply_is_zero == 1:
+    if supply_is_zero == TRUE:
         return (shares)
     end
-    let (local z) = mulDivDown(shares, allAssets, supply)
+    let (local z) = mul_div_down(shares, allAssets, supply)
     return (z)
 end
 
-@view
-func convertToShares{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(assets: Uint256) -> (shares: Uint256):
-    return ERC4626_convertToShares(assets)
-end
-
-@view
-func convertToAssets{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(shares: Uint256) -> (assets: Uint256):
-    return ERC4626_convertToAssets(shares)
-end
-
 #############################################
-##           HOOKS TO OVERRIDE             ##
+#           HOOKS TO OVERRIDE               #
 #############################################
 
-@storage_var
-func beforeWithdrawHookCalledCounter_() -> (count: felt):
-end
-
-@storage_var
-func afterDepositHookCalledCounter_() -> (count: felt):
-end
-
 @view
-func beforeWithdrawHookCalledCounter{ syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr }() -> (beforeWithdrawHookCalledCounter: felt):
-    let (beforeWithdrawHookCalledCounter) = beforeWithdrawHookCalledCounter_.read()
-    return (beforeWithdrawHookCalledCounter)
-end
-
-@view
-func afterDepositHookCalledCounter{ syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr
-    }() -> (afterDepositHookCalledCounter: felt):
-    let (afterDepositHookCalledCounter) = afterDepositHookCalledCounter_.read()
-    return (afterDepositHookCalledCounter)
-end
-
-@view
-func totalAssetsValue{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> (totalAssets: Uint256):
-    return totalAssets()
-end
-
-func totalAssets{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}() -> (totalAssets: Uint256):
+func totalAssets{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}() -> (
+        totalManagedAssets : Uint256):
     alloc_locals
-    let (asset) = ERC4626_asset_.read()
+    let (asset) = ERC4626_asset.read()
     let (local this) = get_contract_address()
     let (local balance) = IERC20.balanceOf(contract_address=asset, account=this)
     return (balance)
 end
 
-func beforeWithdraw{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(assets: Uint256, shares: Uint256):
+func _before_withdraw{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        assets : Uint256, shares : Uint256):
     let (count) = beforeWithdrawHookCalledCounter_.read()
     beforeWithdrawHookCalledCounter_.write(count + 1)
     return ()
 end
 
-func afterDeposit{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(assets: Uint256, shares: Uint256):
+func _after_deposit{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        assets : Uint256, shares : Uint256):
     let (count) = afterDepositHookCalledCounter_.read()
     afterDepositHookCalledCounter_.write(count + 1)
     return ()
 end
 
+@view
+func beforeWithdrawHookCalledCounter{
+        syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}() -> (
+        beforeWithdrawHookCalledCounter : felt):
+    let (beforeWithdrawHookCalledCounter) = beforeWithdrawHookCalledCounter_.read()
+    return (beforeWithdrawHookCalledCounter)
+end
+
+@view
+func afterDepositHookCalledCounter{
+        syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}() -> (
+        afterDepositHookCalledCounter : felt):
+    let (afterDepositHookCalledCounter) = afterDepositHookCalledCounter_.read()
+    return (afterDepositHookCalledCounter)
+end
+
 #############################################
-##                 ERC20                   ##
+#                  ERC20                    #
 #############################################
 
 #
@@ -432,62 +331,42 @@ end
 #
 
 @view
-func name{
-        syscall_ptr : felt*,
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }() -> (name: felt):
-    let (name) = ERC20_name()
+func name{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}() -> (name : felt):
+    let (name) = ERC20.name()
     return (name)
 end
 
 @view
-func symbol{
-        syscall_ptr : felt*,
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }() -> (symbol: felt):
-    let (symbol) = ERC20_symbol()
+func symbol{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}() -> (symbol : felt):
+    let (symbol) = ERC20.symbol()
     return (symbol)
 end
 
 @view
-func totalSupply{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }() -> (totalSupply: Uint256):
-    let (totalSupply: Uint256) = ERC20_totalSupply()
+func totalSupply{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}() -> (
+        totalSupply : Uint256):
+    let (totalSupply : Uint256) = ERC20.total_supply()
     return (totalSupply)
 end
 
 @view
-func decimals{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }() -> (decimals: felt):
-    let (decimals) = ERC20_decimals()
+func decimals{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}() -> (
+        decimals : felt):
+    let (decimals) = ERC20.decimals()
     return (decimals)
 end
 
 @view
-func balanceOf{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(account: felt) -> (balance: Uint256):
-    let (balance: Uint256) = ERC20_balanceOf(account)
+func balanceOf{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        account : felt) -> (balance : Uint256):
+    let (balance : Uint256) = ERC20.balance_of(account)
     return (balance)
 end
 
 @view
-func allowance{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(owner: felt, spender: felt) -> (remaining: Uint256):
-    let (remaining: Uint256) = ERC20_allowance(owner, spender)
+func allowance{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        owner : felt, spender : felt) -> (remaining : Uint256):
+    let (remaining : Uint256) = ERC20.allowance(owner, spender)
     return (remaining)
 end
 
@@ -496,60 +375,36 @@ end
 #
 
 @external
-func transfer{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(recipient: felt, amount: Uint256) -> (success: felt):
-    ERC20_transfer(recipient, amount)
-    # Cairo equivalent to 'return (true)'
+func transfer{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        recipient : felt, amount : Uint256) -> (success : felt):
+    ERC20.transfer(recipient, amount)
     return (TRUE)
 end
 
 @external
-func transferFrom{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(
-        sender: felt, 
-        recipient: felt, 
-        amount: Uint256
-    ) -> (success: felt):
-    ERC20_transferFrom(sender, recipient, amount)
-    # Cairo equivalent to 'return (true)'
+func transferFrom{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        sender : felt, recipient : felt, amount : Uint256) -> (success : felt):
+    ERC20.transfer_from(sender, recipient, amount)
     return (TRUE)
 end
 
 @external
-func approve{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(spender: felt, amount: Uint256) -> (success: felt):
-    ERC20_approve(spender, amount)
-    # Cairo equivalent to 'return (true)'
+func approve{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        spender : felt, amount : Uint256) -> (success : felt):
+    ERC20.approve(spender, amount)
     return (TRUE)
 end
 
 @external
-func increaseAllowance{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(spender: felt, added_value: Uint256) -> (success: felt):
-    ERC20_increaseAllowance(spender, added_value)
-    # Cairo equivalent to 'return (true)'
+func increaseAllowance{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        spender : felt, added_value : Uint256) -> (success : felt):
+    ERC20.increase_allowance(spender, added_value)
     return (TRUE)
 end
 
 @external
-func decreaseAllowance{
-        syscall_ptr : felt*, 
-        pedersen_ptr : HashBuiltin*,
-        range_check_ptr
-    }(spender: felt, subtracted_value: Uint256) -> (success: felt):
-    ERC20_decreaseAllowance(spender, subtracted_value)
-    # Cairo equivalent to 'return (true)'
+func decreaseAllowance{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        spender : felt, subtracted_value : Uint256) -> (success : felt):
+    ERC20.decrease_allowance(spender, subtracted_value)
     return (TRUE)
 end

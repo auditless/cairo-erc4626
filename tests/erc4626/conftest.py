@@ -10,7 +10,7 @@ import dill
 from starkware.starknet.compiler.compile import compile_starknet_files
 from starkware.starknet.testing.starknet import Starknet, StarknetContract
 
-from ..util import str_to_felt, uint, Signer
+from ..util import str_to_felt, uint, TestSigner
 
 # pytest-xdest only shows stderr
 sys.stdout = sys.stderr
@@ -65,7 +65,7 @@ async def build_copyable_deployment():
     )
 
     signers = dict(
-        owner=Signer(8249684680), admin=Signer(2849643986), user=Signer(89238549868)
+        owner=TestSigner(8249684680), admin=TestSigner(2849643986), user=TestSigner(89238549868)
     )
 
     # Maps from name -> account contract
