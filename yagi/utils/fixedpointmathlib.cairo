@@ -9,10 +9,7 @@ from starkware.cairo.common.uint256 import (
     uint256_eq,
     uint256_sub
 )
-from openzeppelin.security.safemath import (
-    uint256_checked_mul,
-    uint256_checked_div_rem
-)
+from openzeppelin.security.safemath.library import SafeUint256
 
 ## @title Fixed point math library
 ## @description A fixed point math library
@@ -23,10 +20,10 @@ func mul_div_down{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_pt
     alloc_locals
 
     # set prod = x * y
-    let (local prod) = uint256_checked_mul(x, y)
+    let (local prod) = SafeUint256.mul(x, y)
 
     # compute (x * y) / denominator
-    let (q2, _) = uint256_checked_div_rem(prod, denominator)
+    let (q2, _) = SafeUint256.div_rem(prod, denominator)
     return (q2)
 end
 
@@ -36,7 +33,7 @@ func mul_div_up{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}
     let ONE = Uint256(1, 0)
 
     # set prod = x * y
-    let (local prod) = uint256_checked_mul(x, y)
+    let (local prod) = SafeUint256.mul(x, y)
 
     # if prod = 0, just return 0
     let (local prod_iszero) = uint256_eq(prod, ZERO)
@@ -48,7 +45,7 @@ func mul_div_up{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}
     let (local dec_prod) = uint256_sub(prod, ONE)
 
     # compute ((x * y - 1) / denominator) + 1
-    let (q2, _) = uint256_checked_div_rem(dec_prod, denominator)
+    let (q2, _) = SafeUint256.div_rem(dec_prod, denominator)
     let (local inc_q2, _) = uint256_add(q2, ONE)
     return (inc_q2)
 end

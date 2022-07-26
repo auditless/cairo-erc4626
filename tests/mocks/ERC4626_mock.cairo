@@ -7,11 +7,11 @@ from starkware.cairo.common.cairo_builtins import HashBuiltin
 from starkware.starknet.common.syscalls import get_caller_address, get_contract_address
 from starkware.cairo.common.uint256 import ALL_ONES, Uint256, uint256_check, uint256_eq
 
-from openzeppelin.token.erc20.interfaces.IERC20 import IERC20
+from openzeppelin.token.erc20.IERC20 import IERC20
 from openzeppelin.token.erc20.library import ERC20
 
-from dependencies.erc4626.library import ERC4626, ERC4626_asset, Deposit, Withdraw
-from dependencies.erc4626.utils.fixedpointmathlib import mul_div_down, mul_div_up
+from yagi.erc4626.library import ERC4626, ERC4626_asset, Deposit, Withdraw
+from yagi.utils.fixedpointmathlib import mul_div_down, mul_div_up
 
 # @title Generic ERC4626 vault (copy this to build your own).
 # @description An ERC4626-style vault implementation.
@@ -159,25 +159,29 @@ end
 
 @view
 func maxDeposit(to : felt) -> (maxAssets : Uint256):
-    return ERC4626.max_deposit(to)
+    let (max_deposit) = ERC4626.max_deposit(to)
+    return (max_deposit)
 end
 
 @view
 func maxMint(to : felt) -> (maxShares : Uint256):
-    return ERC4626.max_mint(to)
+    let (max_mint) = ERC4626.max_mint(to)
+    return (max_mint)
 end
 
 @view
 func maxWithdraw{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
         from_ : felt) -> (maxAssets : Uint256):
     let (balance) = ERC20.balance_of(from_)
-    return convertToAssets(balance)
+    let (max_assets) = convertToAssets(balance)
+    return (max_assets)
 end
 
 @view
 func maxRedeem{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
         caller : felt) -> (maxShares : Uint256):
-    return ERC4626.max_redeem(caller)
+    let (max_redeem) = ERC4626.max_redeem(caller)
+    return (max_redeem)
 end
 
 #############################################
@@ -249,13 +253,13 @@ func convertToShares{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_che
     end
 
     let (local supply) = ERC20.total_supply()
-    let (local allAssets) = totalAssets()
+    let (local all_assets) = totalAssets()
     let ZERO = Uint256(0, 0)
     let (supply_is_zero) = uint256_eq(supply, ZERO)
     if supply_is_zero == TRUE:
         return (assets)
     end
-    let (local z) = mul_div_down(assets, supply, allAssets)
+    let (local z) = mul_div_down(assets, supply, all_assets)
     return (z)
 end
 
@@ -268,13 +272,13 @@ func convertToAssets{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_che
     end
 
     let (local supply) = ERC20.total_supply()
-    let (local allAssets) = totalAssets()
+    let (local all_assets) = totalAssets()
     let ZERO = Uint256(0, 0)
     let (supply_is_zero) = uint256_eq(supply, ZERO)
     if supply_is_zero == TRUE:
         return (shares)
     end
-    let (local z) = mul_div_down(shares, allAssets, supply)
+    let (local z) = mul_div_down(shares, all_assets, supply)
     return (z)
 end
 
