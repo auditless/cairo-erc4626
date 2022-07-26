@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: MIT
-# OpenZeppelin Contracts for Cairo v0.1.0 (introspection/ERC165.cairo)
+# OpenZeppelin Contracts for Cairo v0.2.1 (introspection/erc165/library.cairo)
 
 %lang starknet
 
-from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
+from starkware.cairo.common.cairo_builtins import HashBuiltin
 from starkware.cairo.common.math import assert_not_equal
 from starkware.cairo.common.bool import TRUE
 
-from openzeppelin.utils.constants import INVALID_ID, IERC165_ID
+from openzeppelin.utils.constants.library import INVALID_ID, IERC165_ID
 
 @storage_var
 func ERC165_supported_interfaces(interface_id: felt) -> (is_supported: felt):

@@ -1,18 +1,13 @@
 # SPDX-License-Identifier: MIT
-# OpenZeppelin Contracts for Cairo v0.1.0 (token/erc20/ERC20_Mintable.cairo)
+# OpenZeppelin Contracts for Cairo v0.2.1 (token/erc20/presets/ERC20.cairo)
 
 %lang starknet
 
 from starkware.cairo.common.cairo_builtins import HashBuiltin
-from starkware.cairo.common.uint256 import Uint256
 from starkware.cairo.common.bool import TRUE
+from starkware.cairo.common.uint256 import Uint256
 
 from openzeppelin.token.erc20.library import ERC20
-
-from openzeppelin.access.ownable import (
-    Ownable_initializer,
-    Ownable_only_owner
-)
 
 @constructor
 func constructor{
@@ -24,12 +19,10 @@ func constructor{
         symbol: felt,
         decimals: felt,
         initial_supply: Uint256,
-        recipient: felt,
-        owner: felt
+        recipient: felt
     ):
-    ERC20.constructor(name, symbol, decimals)
+    ERC20.initializer(name, symbol, decimals)
     ERC20._mint(recipient, initial_supply)
-    Ownable_initializer(owner)
     return ()
 end
 
@@ -153,15 +146,4 @@ func decreaseAllowance{
     }(spender: felt, subtracted_value: Uint256) -> (success: felt):
     ERC20.decrease_allowance(spender, subtracted_value)
     return (TRUE)
-end
-
-@external
-func mint{
-        syscall_ptr: felt*,
-        pedersen_ptr: HashBuiltin*,
-        range_check_ptr
-    }(to: felt, amount: Uint256):
-    Ownable_only_owner()
-    ERC20._mint(to, amount)
-    return ()
 end

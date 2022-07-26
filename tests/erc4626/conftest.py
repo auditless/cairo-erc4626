@@ -36,7 +36,7 @@ def compile(path):
 
 async def deploy_account(starknet, signer, account_def):
     return await starknet.deploy(
-        contract_def=account_def,
+        contract_class=account_def,
         constructor_calldata=[signer.public_key],
     )
 
@@ -59,8 +59,8 @@ async def build_copyable_deployment():
     starknet = await Starknet.empty()
 
     defs = SimpleNamespace(
-        account=compile("openzeppelin/account/Account.cairo"),
-        erc20_mintable=compile("openzeppelin/token/erc20/ERC20_Mintable.cairo"),
+        account=compile("openzeppelin/account/presets/Account.cairo"),
+        erc20_mintable=compile("openzeppelin/token/erc20/presets/ERC20Mintable.cairo"),
         erc4626_mock=compile("tests/mocks/ERC4626_mock.cairo"),
     )
 
@@ -79,7 +79,7 @@ async def build_copyable_deployment():
     # Underlying asset
     initial_supply = uint(100 * 10 ** 18)
     asset = await starknet.deploy(
-        contract_def=defs.erc20_mintable,
+        contract_class=defs.erc20_mintable,
         constructor_calldata=[
             str_to_felt("Ether"),
             str_to_felt("ETH"),
@@ -91,7 +91,7 @@ async def build_copyable_deployment():
     )
 
     vault = await starknet.deploy(
-        contract_def=defs.erc4626_mock,
+        contract_class=defs.erc4626_mock,
         constructor_calldata=[
             asset.contract_address,
             str_to_felt("vaultEther"),

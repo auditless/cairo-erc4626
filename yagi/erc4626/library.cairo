@@ -15,14 +15,14 @@ from starkware.starknet.common.syscalls import (
     get_contract_address
 )
 
-from openzeppelin.token.erc20.interfaces.IERC20 import IERC20
+from openzeppelin.token.erc20.IERC20 import IERC20
 from openzeppelin.token.erc20.library import (
     ERC20,
     ERC20_allowances
 )
-from openzeppelin.security.safemath import uint256_checked_sub_le
+from openzeppelin.security.safemath.library import SafeUint256
 
-from dependencies.erc4626.utils.fixedpointmathlib import mul_div_up, mul_div_down
+from yagi.utils.fixedpointmathlib import mul_div_up, mul_div_down
 
 ## @title Generic ERC4626 vault
 ## @description An ERC4626-style vault implementation.
@@ -66,7 +66,7 @@ namespace ERC4626:
         ):
         alloc_locals
         let (decimals) = IERC20.decimals(contract_address=asset)
-        ERC20.constructor(name, symbol, decimals)
+        ERC20.initializer(name, symbol, decimals)
         ERC4626_asset.write(asset)
         return ()
     end
@@ -84,7 +84,8 @@ namespace ERC4626:
     end
 
     func max_redeem{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(caller: felt) -> (max_shares: Uint256):
-        return ERC20.balance_of(caller)
+        let (balance) = ERC20.balance_of(caller)
+        return (balance)
     end
 
     #############################################
@@ -107,7 +108,7 @@ namespace ERC4626:
         let (current_allowance: Uint256) = ERC20_allowances.read(owner=owner, spender=spender)
 
         with_attr error_message("ERC20: allowance below zero"):
-            let (new_allowance: Uint256) = uint256_checked_sub_le(current_allowance, subtracted_value)
+            let (new_allowance: Uint256) = SafeUint256.sub_le(current_allowance, subtracted_value)
         end
 
         ERC20._approve(owner, spender, new_allowance)
