@@ -1,4 +1,4 @@
-# ERC4622 Vault Implementation
+# ERC4626 Vault Implementation
 
 - `dependencies.erc4626`: contracts
 - `openzeppelin`: OpenZeppelin `cairo-contracts` dependencies
