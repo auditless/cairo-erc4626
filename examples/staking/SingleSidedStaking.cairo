@@ -323,8 +323,6 @@ func _before_withdraw{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_ch
     let (enough_vault_balance) = uint256_le(assets, vault_balance)
     if enough_vault_balance == FALSE:
         # Claim all funds from splitter
-        let (splitter_balance) = ISplitter.claimable(
-            contract_address=splitter, account=contract_address)
         ISplitter.claim(contract_address=splitter)
 
         tempvar syscall_ptr = syscall_ptr
