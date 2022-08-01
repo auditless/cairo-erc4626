@@ -7,11 +7,12 @@ from starkware.cairo.common.cairo_builtins import HashBuiltin
 from starkware.starknet.common.syscalls import get_caller_address, get_contract_address
 from starkware.cairo.common.uint256 import ALL_ONES, Uint256, uint256_check, uint256_eq
 
-from openzeppelin.token.erc20.IERC20 import IERC20
 from openzeppelin.token.erc20.library import ERC20
+from openzeppelin.token.erc20.IERC20 import IERC20
 
 from yagi.erc4626.library import ERC4626, ERC4626_asset, Deposit, Withdraw
 from yagi.utils.fixedpointmathlib import mul_div_down, mul_div_up
+from yagi.utils.safeerc20 import SafeERC20
 
 from starkware.cairo.common.uint256 import uint256_le
 
@@ -80,7 +81,7 @@ func deposit{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     let (asset) = ERC4626_asset.read()
     let (local msg_sender) = get_caller_address()
     let (local this) = get_contract_address()
-    IERC20.transferFrom(contract_address=asset, sender=msg_sender, recipient=this, amount=assets)
+    SafeERC20.transferFrom(contract_address=asset, sender=msg_sender, recipient=this, amount=assets)
 
     ERC20._mint(receiver, shares)
 
@@ -102,7 +103,7 @@ func mint{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     let (asset) = ERC4626_asset.read()
     let (local msg_sender) = get_caller_address()
     let (local this) = get_contract_address()
-    IERC20.transferFrom(contract_address=asset, sender=msg_sender, recipient=this, amount=assets)
+    SafeERC20.transferFrom(contract_address=asset, sender=msg_sender, recipient=this, amount=assets)
 
     ERC20._mint(receiver, shares)
 
@@ -130,7 +131,7 @@ func withdraw{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}
     Withdraw.emit(owner, receiver, assets, shares)
 
     let (asset) = ERC4626_asset.read()
-    IERC20.transfer(contract_address=asset, recipient=receiver, amount=assets)
+    SafeERC20.transfer(contract_address=asset, recipient=receiver, amount=assets)
 
     return (shares)
 end
@@ -157,7 +158,7 @@ func redeem{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     Withdraw.emit(owner, receiver, assets, shares)
 
     let (asset) = ERC4626_asset.read()
-    IERC20.transfer(contract_address=asset, recipient=receiver, amount=assets)
+    SafeERC20.transfer(contract_address=asset, recipient=receiver, amount=assets)
 
     return (assets)
 end
