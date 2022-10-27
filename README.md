@@ -1,8 +1,8 @@
 # ERC4626 Vault Implementation
 
-- `dependencies.erc4626`: contracts
+- `yagi.erc4626`: contracts
 - `openzeppelin`: OpenZeppelin `cairo-contracts` dependencies
-- `tests`: pytest tests folder
+- `tests`: protostar tests folder
 
 ## :warning: WARNING! :warning:
 
@@ -16,7 +16,7 @@ This code is entirely experimental, changing frequently and un-audited. Please d
 ## Reusability
 
 How to reuse this code:
-- Copy the `dependencies/erc4626` folder to your repository
+- Copy the `yagi` folder to your repository
 - Copy the `openzeppelin` folder from the latest openzeppelin `cairo-contracts` implementation
 - Copy the `ERC4626.cairo` contract into your own implementation
 - Use your favorite ERC20 implementation with the contract
@@ -30,6 +30,7 @@ Dependencies:
 
 - `poetry` (Python package manager)
 - Basic cairo system dependencies (see [Setting up the environment](https://www.cairo-lang.org/docs/quickstart.html))
+- Protostar (see [Protostar installation](https://docs.swmansion.com/protostar/docs/tutorials/installation))
 
 Installation:
 

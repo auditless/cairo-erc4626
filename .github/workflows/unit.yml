@@ -47,6 +47,11 @@ jobs:
 
       - name: Install dependencies
         run: poetry install
+      
+      - name: Install Protostar
+        uses: sambarnes/protostar-toolchain@main
 
       - name: Run the tests
-        run: make test
+        run: |
+          export PATH="$PATH:/home/runner/.protostar/dist/protostar"
+          make test
