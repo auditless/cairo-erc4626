@@ -1,0 +1,13 @@
+["protostar.config"]
+protostar_version = "0.6.0"
+
+["protostar.project"]
+# libs_path = "./lib"         
+
+["protostar.contracts"]
+fixedpointmathlib = [
+    "./yagi/utils/fixedpointmathlib.cairo",
+]
+erc4626 = [
+    "./yagi/erc4626/ERC4626.cairo",
+]
