@@ -25,7 +25,7 @@ namespace IERC4626 {
     func convertToShares(assets: Uint256) -> (shares: Uint256) {
     }
 
-    func convertToAssets(shares: felt) -> (assets: Uint256) {
+    func convertToAssets(shares: Uint256) -> (assets: Uint256) {
     }
 
     //
