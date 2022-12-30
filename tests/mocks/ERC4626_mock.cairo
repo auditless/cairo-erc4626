@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+// NOTE: This is a mock contract implementation of ERC4626
 
 %lang starknet
 
@@ -17,7 +18,7 @@ from yagi.utils.safeerc20 import SafeERC20
 // @title Generic ERC4626 vault (copy this to build your own).
 // @description An ERC4626-style vault implementation.
 //              Adapted from the solmate implementation: https://github.com/Rari-Capital/solmate/blob/main/src/mixins/ERC4626.sol
-// @dev When extending this contract, don't forget to incorporate the ERC20 implementation.
+// @dev When extending this mock contract, don't forget to incorporate the ERC20 implementation.
 // @author Peteris <github.com/Pet3ris>
 
 //
