@@ -1,7 +1,0 @@
-[project]
-protostar-version = "0.9.0"
-
-[contracts]
-fixedpointmathlib = ["yagi/utils/fixedpointmathlib.cairo"]
-erc4626 = ["yagi/erc4626/ERC4626.cairo"]
-

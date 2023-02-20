@@ -1,49 +1,44 @@
 # ERC4626 Vault Implementation
 
-- `yagi.erc4626`: contracts
-- `openzeppelin`: OpenZeppelin `cairo-contracts` dependencies
-- `tests`: protostar tests folder
+In progress Cairo 1.0 version.
 
 ## :warning: WARNING! :warning:
 
 This code is entirely experimental, changing frequently and un-audited. Please do not use it in production!
 
-## Features
+## Dependencies
 
-- This code preserves the original `solmate` license
-- Bring your own ERC20 token implementation (or use `openzeppelin` as seen in the mock contract)
+- Rust
+- [Scarb](https://github.com/software-mansion/scarb)
 
-## Reusability
+## Installation
 
-How to reuse this code:
-- Copy the `yagi` folder to your repository
-- Copy the `openzeppelin` folder from the latest openzeppelin `cairo-contracts` implementation
-- Copy the `ERC4626.cairo` contract into your own implementation
-- Use your favorite ERC20 implementation with the contract
-- Fill in the hook functions
+Use this locally as a scarb package. You can clone the repository
+next to your project directory and add the following line in your
+`Scarb.toml` config:
 
-Or feel free to get in touch with us on [Twitter](http://www.twitter.com/yagi_fi).
-
-## How to contribute
-
-Dependencies:
-
-- `poetry` (Python package manager)
-- Basic cairo system dependencies (see [Setting up the environment](https://www.cairo-lang.org/docs/quickstart.html))
-- Protostar (see [Protostar installation](https://docs.swmansion.com/protostar/docs/tutorials/installation))
-
-Installation:
-
+```toml
+[dependencies]
+cairo_erc4626 = { path = "../cairo_erc4626" }
 ```
-poetry install
+
+## Contribution guide
+
+First install the Cairo lang test runner globally:
+
+```bash
+make install
+```
+
+This will install the `cairo-test` binary.
+Next, build the code and run the tests:
+
+```bash
+make build
+make test
 ```
 
 ## Thanks to
 
 - t11s and solmate contributors for the [solmate](https://github.com/Rari-Capital/solmate) ERC4626 implementation and math
-- OpenZeppelin team for the excellent [cairo-contracts](https://github.com/OpenZeppelin/cairo-contracts)
-- Zorro team for the testing patterns in [zorro](https://github.com/zorro-project/zorro)
-
-## Related
-
-- Please check out Milan Cermak's repository which is also porting the solmate implementation [cairo-4626](https://github.com/milancermak/cairo-4626)
+- Quaireaux team for inspiration setting up Cairo 1.0 [quaireaux](https://github.com/keep-starknet-strange/quaireaux)
