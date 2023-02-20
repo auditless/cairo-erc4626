@@ -1,0 +1,10 @@
+[package]
+name = "cairo_erc4626"
+version = "0.1.0"
+description = "Library for building ERC4626 vaults and wrappers in Cairo"
+homepage = "https://github.com/auditless/cairo-erc4626"
+
+# See more keys and their definitions at https://github.com/software-mansion/scarb/blob/main/scarb/src/core/manifest/toml.rs
+
+[dependencies]
+# foo = { path = "vendor/foo" }

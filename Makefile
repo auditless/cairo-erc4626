@@ -1,7 +1,13 @@
-compile: FORCE
-	protostar build
+build: FORCE
+	scarb build
+
+fmt: FORCE
+	scarb fmt
+
+deps: FORCE
+	cargo +nightly install cairo-lang-test-runner
 
 test: FORCE
-	protostar test ./tests
+	cairo-test -p .
 
 FORCE:
